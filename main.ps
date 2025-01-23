@@ -1,1 +1,77 @@
+# Define colors for output
+$infoColor = "Cyan"
+$promptColor = "Yellow"
+$errorColor = "Red"
+
+# Function to write colored output
+function Write-ColoredOutput {
+    param (
+        [string]$Message,
+        [string]$Color
+    )
+    Write-Host $Message -ForegroundColor $Color
+}
+
+# Prompt for user input
+function Get-UserInput {
+    param (
+        [string]$PromptMessage
+    )
+    Write-ColoredOutput -Message $PromptMessage -Color $promptColor
+    Read-Host
+}
+
+# Set default location
+$location = "uksouth"
+
+# Login and set the subscription
+Write-ColoredOutput -Message "Logging in to Azure..." -Color $infoColor
+Connect-AzAccount
+
+$subscriptionId = Get-UserInput -PromptMessage "Enter the Azure subscription ID to use:"
+Set-AzContext -SubscriptionId $subscriptionId
+
+# Check or create a resource group
+$resourceGroupName = Get-UserInput -PromptMessage "Enter the resource group name (or create a new one):"
+$resourceGroup = Get-AzResourceGroup -Name $resourceGroupName -ErrorAction SilentlyContinue
+
+if (-not $resourceGroup) {
+    Write-ColoredOutput -Message "Resource group '$resourceGroupName' does not exist. Creating it..." -Color $infoColor
+    New-AzResourceGroup -Name $resourceGroupName -Location $location
+} else {
+    Write-ColoredOutput -Message "Resource group '$resourceGroupName' found." -Color $infoColor
+}
+
+# Check or create an Automation Account
+$automationAccountName = Get-UserInput -PromptMessage "Enter the Automation Account name (or create a new one):"
+$automationAccount = Get-AzAutomationAccount -ResourceGroupName $resourceGroupName -Name $automationAccountName -ErrorAction SilentlyContinue
+
+if (-not $automationAccount) {
+    Write-ColoredOutput -Message "Automation Account '$automationAccountName' does not exist. Creating it..." -Color $infoColor
+    New-AzAutomationAccount -ResourceGroupName $resourceGroupName -Name $automationAccountName -Location $location
+} else {
+    Write-ColoredOutput -Message "Automation Account '$automationAccountName' found." -Color $infoColor
+}
+
+# Create or update a runbook
+$runbookName = Get-UserInput -PromptMessage "Enter the Runbook name:"
+$runbookType = Get-UserInput -PromptMessage "Enter the Runbook type (e.g., PowerShell, Python):"
+$runbookPath = Get-UserInput -PromptMessage "Enter the path to the Runbook script file (.ps1 or .py):"
+
+$runbook = Get-AzAutomationRunbook -ResourceGroupName $resourceGroupName -AutomationAccountName $automationAccountName -Name $runbookName -ErrorAction SilentlyContinue
+
+if (-not $runbook) {
+    Write-ColoredOutput -Message "Runbook '$runbookName' does not exist. Creating it..." -Color $infoColor
+    New-AzAutomationRunbook -ResourceGroupName $resourceGroupName -AutomationAccountName $automationAccountName -Name $runbookName -Type $runbookType -Location $location
+} else {
+    Write-ColoredOutput -Message "Runbook '$runbookName' found. Updating it..." -Color $infoColor
+}
+
+Write-ColoredOutput -Message "Publishing the Runbook..." -Color $infoColor
+Publish-AzAutomationRunbook -ResourceGroupName $resourceGroupName -AutomationAccountName $automationAccountName -Name $runbookName
+
+Write-ColoredOutput -Message "Uploading Runbook script..." -Color $infoColor
+Set-AzAutomationRunbookContent -ResourceGroupName $resourceGroupName -AutomationAccountName $automationAccountName -Name $runbookName -Path $runbookPath
+
+Write-ColoredOutput -Message "Runbook '$runbookName' created and configured successfully in Automation Account '$automationAccountName'." -Color $infoColor
 
